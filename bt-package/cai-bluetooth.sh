@@ -2,6 +2,8 @@
 # Thêm máy in nhãn RHEBAR/Beeprt qua Bluetooth trên macOS.
 # Yêu cầu: đã cài RHEBAR-Driver_1.3.2.20.pkg và đã ghép đôi máy in trong Cài đặt > Bluetooth.
 # Chạy: gõ "bash " vào Terminal, kéo file này vào, Enter.
+# Tùy chọn --pace (thêm sau tên file): gửi từng trang, chờ in xong mới gửi tiếp —
+# chỉ dùng nếu máy in vẫn bỏ trang ở chế độ mặc định.
 # Chương trình cầu nối được nhúng sẵn cuối file: macOS chỉ cho Terminal đọc file được
 # kéo-thả, không cho đọc các file khác trong Downloads/Desktop.
 set -e
@@ -81,6 +83,9 @@ if [ -z "$PORT" ]; then
   while grep -qs "<string>$PORT</string>" /Library/LaunchDaemons/com.rhebar.btbridge.*.plist; do PORT=$((PORT+1)); done
 fi
 
+EXTRA=""
+if [ "$1" = "--pace" ]; then EXTRA="<string>--pace</string>"; echo "Chế độ: gửi từng trang (--pace)"; fi
+
 case "$(uname -m)" in
   arm64) TAG=AARCH64 ;;
   *) TAG=X86_64 ;;
@@ -126,7 +131,7 @@ cat > "$PLIST" <<EOF
 <dict>
   <key>Label</key><string>$LABEL</string>
   <key>ProgramArguments</key>
-  <array><string>$BRIDGE</string><string>$DEV</string><string>$PORT</string></array>
+  <array><string>$BRIDGE</string><string>$DEV</string><string>$PORT</string>$EXTRA</array>
   <key>RunAtLoad</key><true/>
   <key>KeepAlive</key><true/>
   <key>StandardErrorPath</key><string>/var/log/rhebar-btbridge.log</string>

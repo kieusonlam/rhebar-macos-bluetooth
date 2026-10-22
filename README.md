@@ -53,7 +53,7 @@ Không cần vào "Thêm máy in".
 | Hiện tượng | Cách xử lý |
 |---|---|
 | "Không thấy cổng Bluetooth" | Chưa ghép đôi; hoặc máy in chỉ có Bluetooth LE (chưa hỗ trợ). Kiểm tra bằng `ls /dev/cu.*` |
-| In nhiều trang chỉ ra trang đầu | Cập nhật lên bản ≥ 1.0.1 (chạy lại `cai-bluetooth.sh` mới) |
+| In nhiều trang chỉ ra trang đầu | Cập nhật bản mới nhất (chạy lại `cai-bluetooth.sh`); vẫn lỗi thì chạy lại với `--pace` |
 | Lệnh in treo, không ra giấy | Tắt/bật máy in, xem nhật ký `tail /var/log/rhebar-btbridge.log` |
 | In lệch, nhảy nhãn | Cho máy tự đo nhãn (giữ FEED khi bật nguồn), chọn đúng khổ nhãn |
 | Máy in không có trong danh sách | Chạy `lpstat -v`; chạy lại `cai-bluetooth.sh` và xem lỗi in ra |
@@ -69,10 +69,12 @@ macOS không có đường in qua Bluetooth và không cho cài CUPS backend bê
 
 - [`src/btbridge.c`](src/btbridge.c): nghe `127.0.0.1:<port>`, mỗi lệnh in mở cổng serial Bluetooth
   (macOS tự kết nối), chuyển dữ liệu, đóng cổng khi xong. Chờ tối đa 30 giây nếu cổng chưa sẵn sàng.
-  Gửi **từng trang** (cắt sau mỗi lệnh TSPL `PRINT`) và chờ máy in xong trang đó qua lệnh trạng thái
-  `ESC ! ?` rồi mới gửi tiếp. Qua Bluetooth máy in không chặn được luồng dữ liệu như USB, gửi liền
-  nhiều trang thì các trang sau bị rơi. Máy không trả lời trạng thái thì chờ theo thời gian ước tính
-  từ `SIZE`/`SPEED`.
+  Gửi liền cả lệnh in (như driver Windows), rồi trước khi ngắt kết nối hỏi trạng thái máy in
+  (`ESC ! ?`): máy chỉ trả lời sau khi đã nhận hết dữ liệu, nên không mất trang nào.
+  Ngắt kết nối sớm khi dữ liệu còn trong bộ đệm Bluetooth của Mac nhiều khả năng là nguyên nhân lỗi
+  "chỉ in trang đầu" ở v1.0.0.
+  Tùy chọn `--pace` (`bash cai-bluetooth.sh --pace`): gửi từng trang, chờ in xong mới gửi tiếp,
+  cho máy in bộ đệm nhỏ. Chậm hơn, chỉ dùng nếu chế độ mặc định vẫn bỏ trang.
 - [`bt-package/cai-bluetooth.sh`](bt-package/cai-bluetooth.sh): tìm cổng `/dev/cu.*`, chọn PPD
   chính thức theo tên máy, cài LaunchDaemon `com.rhebar.btbridge.<tên>`, tạo hàng đợi in bằng `lpadmin`.
   Mỗi máy in Bluetooth dùng một cổng riêng từ 9190.

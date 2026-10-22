@@ -19,12 +19,12 @@ sys.stdout.buffer.write(out)
 EOF
 }
 
-run_case() {  # $1 tên, $2 số trang, $3 glued|normal, $4 --silent|""
+run_case() {  # $1 tên, $2 số trang, $3 glued|normal, $4 cờ máy giả lập, $5 cờ cầu nối
   local name=$1 n=$2 dev=/tmp/cu.SIM-$1 port=$((9300 + RANDOM % 500))
   rm -f /tmp/sim-$name*
   python3 /t/sim_printer.py $dev /tmp/sim-$name $4 & local sp=$!
   while [ ! -f /tmp/sim-$name.ready ]; do sleep 0.1; done
-  /tmp/br $dev $port 2>/tmp/br-$name.log & local bp=$!
+  /tmp/br $dev $port $5 2>/tmp/br-$name.log & local bp=$!
   sleep 0.5
   make_job $n $3 > /tmp/job-$name
   python3 -c "
@@ -42,8 +42,13 @@ s=socket.create_connection(('127.0.0.1',$port)); s.sendall(open('/tmp/job-$name'
   kill $bp $sp 2>/dev/null; wait $bp $sp 2>/dev/null
 }
 
-run_case status3 3 normal ""
-run_case glued3 3 glued ""
-run_case silent3 3 normal --silent
-cat /tmp/br-status3.log /tmp/br-silent3.log
+# mặc định: gửi liền, máy in bộ đệm lớn (như máy thật in từ Windows)
+run_case stream-status 3 normal "--nodrop" ""
+run_case stream-silent 3 normal "--nodrop --silent" ""
+run_case stream-glued 3 glued "--nodrop" ""
+# --pace: máy in bộ đệm nhỏ, rơi dữ liệu nếu gửi trong lúc đang in
+run_case pace-status 3 normal "" --pace
+run_case pace-silent 3 normal "--silent" --pace
+run_case pace-glued 3 glued "" --pace
+cat /tmp/br-stream-status.log /tmp/br-stream-silent.log
 exit $fail

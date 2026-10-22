@@ -6,13 +6,16 @@
  * sang cổng serial Bluetooth. Mỗi lệnh in mở cổng (macOS tự kết nối BT khi mở)
  * và đóng khi xong để nhả kết nối.
  *
- * Qua Bluetooth máy in không chặn được luồng dữ liệu như USB: gửi liền nhiều trang
- * thì các trang sau bị rơi trong lúc máy đang in. Vì vậy dữ liệu TSPL được gửi từng
- * trang (cắt sau mỗi dòng PRINT) và sau mỗi trang chờ máy in xong, bằng lệnh trạng
- * thái <ESC>!? (bit 0x20 = đang in). Máy không trả lời trạng thái thì chờ theo thời
- * gian ước tính từ SIZE và SPEED.
+ * Mặc định gửi liền cả lệnh in (như driver Windows), rồi trước khi đóng cổng hỏi
+ * trạng thái <ESC>!?: máy chỉ trả lời sau khi đã nhận hết dữ liệu đứng trước lệnh hỏi,
+ * nên đóng cổng lúc đó không làm mất trang nào. Đóng cổng sớm (khi dữ liệu còn trong
+ * bộ đệm Bluetooth của Mac) làm mất các trang sau trang đầu.
  *
- * Usage: rhebar-btbridge <serial-device> [port]
+ * --pace: gửi từng trang (cắt sau mỗi dòng PRINT) và chờ máy in xong trang đó
+ * (bit 0x20 = đang in) mới gửi tiếp, cho máy có bộ đệm nhỏ.
+ * Máy không trả lời trạng thái thì chờ theo thời gian ước tính.
+ *
+ * Usage: rhebar-btbridge <serial-device> [port] [--pace]
  */
 
 #include <errno.h>
@@ -33,6 +36,8 @@
 #define PAGE_TIMEOUT_S 60      /* chờ tối đa mỗi trang (hết giấy, kẹt...) */
 #define STATUS_PRINTING 0x20
 #define STATUS_ERRORS 0xCF     /* nắp mở, kẹt, hết giấy/ruy băng, lỗi khác */
+
+static int pace;               /* --pace: gửi từng trang */
 
 static void logmsg(const char *fmt, const char *a, long b)
 {
@@ -185,6 +190,58 @@ static void wait_page_done(job *j)
 	sleep_s(estimate_s(j));
 }
 
+/* Trước khi đóng cổng: chờ máy xác nhận đã nhận hết (trả lời <ESC>!?) và in xong
+ * (2 lần liền không còn bit đang in). Máy không trả lời: chờ theo dung lượng. */
+static void wait_delivered(job *j, long total)
+{
+	double deadline = now_s() + 20 + 15.0 * (j->pages ? j->pages : 1);
+	int quiet = 0, last_err = 0;
+
+	if (j->status_ok != 0) {
+		sleep_s(0.3);
+		while (now_s() < deadline) {
+			int st;
+			read_status(j->ser, 0);
+			if (write_all(j->ser, "\x1b!?", 3) < 0)
+				return;
+			/* lần đầu chờ lâu hơn: phải đợi cả phần dữ liệu còn trong bộ đệm Bluetooth
+			 * (ước 20 KB/s, tối đa 15 s) */
+			if (j->status_ok == 1) {
+				st = read_status(j->ser, 3000);
+			} else {
+				long ms = 3000 + total / 20;
+				st = read_status(j->ser, (int)(ms > 15000 ? 15000 : ms));
+			}
+			if (st < 0) {
+				if (j->status_ok == -1) {
+					/* đã chờ đủ lâu cho dữ liệu đi hết */
+					j->status_ok = 0;
+					logmsg("printer does not answer <ESC>!? on %s, using timed wait", j->dev, 0);
+					sleep_s(1);
+					return;
+				}
+				continue;
+			}
+			j->status_ok = 1;
+			if (st & (STATUS_PRINTING | STATUS_ERRORS)) {
+				if ((st & STATUS_ERRORS) && st != last_err)
+					logmsg("printer status error 0x%02lx%s", "", st);
+				last_err = st & STATUS_ERRORS;
+				quiet = 0;
+			} else if (++quiet >= 2) {
+				return;
+			}
+			sleep_s(0.3);
+		}
+		if (j->status_ok == 1) {
+			logmsg("final wait timed out on %s", j->dev, 0);
+			return;
+		}
+	}
+	tcdrain(j->ser);
+	sleep_s(3 + total / 5000.0);
+}
+
 /* Dòng kết thúc bằng "PRINT", "PRINT n" hoặc "PRINT n,m" (bỏ \r cuối)? */
 static int tail_is_print(const job *j)
 {
@@ -234,6 +291,7 @@ static void handle(int client, const char *dev)
 	char buf[4096];
 	long total = 0;
 	ssize_t n;
+	double start = now_s(), sent = start;
 	job j;
 
 	memset(&j, 0, sizeof(j));
@@ -269,10 +327,12 @@ static void handle(int client, const char *dev)
 				continue;
 			}
 			if (end_line(&j)) {
+				j.pages++;
+				if (!pace)
+					continue;
 				if (write_all(j.ser, buf + seg, (size_t)(i + 1 - seg)) < 0)
 					goto write_failed;
 				seg = i + 1;
-				j.pages++;
 				wait_page_done(&j);
 			}
 		}
@@ -282,14 +342,15 @@ static void handle(int client, const char *dev)
 	}
 
 	if (j.ser >= 0) {
-		if (j.pages == 0) {
-			tcdrain(j.ser);
-			sleep_s(2);
-		}
+		sent = now_s();
+		if (!pace || j.pages == 0)
+			wait_delivered(&j, total);
 		close(j.ser);
 	}
 	logmsg("job done via %s: %ld bytes", dev, total);
 	logmsg("  pages: %s%ld", "", j.pages);
+	logmsg("  ms: connect+send %s%ld", "", (long)((sent - start) * 1000));
+	logmsg("  ms: wait before disconnect %s%ld", "", (long)((now_s() - sent) * 1000));
 	return;
 
 write_failed:
@@ -303,8 +364,12 @@ int main(int argc, char *argv[])
 	int port = 9190, srv, one = 1;
 	struct sockaddr_in addr;
 
+	if (argc > 1 && !strcmp(argv[argc - 1], "--pace")) {
+		pace = 1;
+		argc--;
+	}
 	if (argc < 2 || argc > 3) {
-		fprintf(stderr, "Usage: %s <serial-device> [port]\n", argv[0]);
+		fprintf(stderr, "Usage: %s <serial-device> [port] [--pace]\n", argv[0]);
 		return 1;
 	}
 	dev = argv[1];

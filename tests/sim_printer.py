@@ -1,10 +1,10 @@
 """Máy in TSPL giả lập trên pty, dùng để test rhebar-btbridge với lệnh in nhiều trang.
 
-Bắt chước máy in Bluetooth: trong lúc đang in một trang (PRINT_S giây) bộ đệm chỉ nhận
-thêm BUF_LIMIT byte, phần vượt bị rơi. Trả lời <ESC>!? bằng 1 byte trạng thái
-(0x20 = đang in) trừ khi chạy với --silent.
+Mặc định bắt chước máy in bộ đệm nhỏ: trong lúc đang in một trang (PRINT_S giây) chỉ
+nhận thêm BUF_LIMIT byte, phần vượt bị rơi. --nodrop: bộ đệm đủ lớn, không rơi byte nào.
+Trả lời <ESC>!? bằng 1 byte trạng thái (0x20 = đang in) trừ khi chạy với --silent.
 
-Usage: python3 sim_printer.py <link-path> <out-file> [--silent]
+Usage: python3 sim_printer.py <link-path> <out-file> [--silent] [--nodrop]
 """
 import os
 import sys
@@ -19,6 +19,7 @@ QUERY = b"\x1b!?"
 
 def main():
     link, out, silent = sys.argv[1], sys.argv[2], "--silent" in sys.argv
+    nodrop = "--nodrop" in sys.argv
     master, slave = os.openpty()
     tty.setraw(slave)
     if os.path.lexists(link):
@@ -54,7 +55,7 @@ def main():
                 break
         for b in data:
             now = time.monotonic()
-            if now < printing_until:
+            if now < printing_until and not nodrop:
                 if taken_while_printing >= BUF_LIMIT:
                     continue  # tràn bộ đệm -> rơi byte
                 taken_while_printing += 1
