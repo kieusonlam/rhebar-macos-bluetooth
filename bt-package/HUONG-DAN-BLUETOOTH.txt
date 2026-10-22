@@ -1,0 +1,27 @@
+IN QUA BLUETOOTH CHO MÁY IN NHÃN RHEBAR / BEEPRT TRÊN macOS
+===========================================================
+
+Driver chính thức RHEBAR cho Mac chỉ in qua USB. Gói này thêm một "cầu nối" nhỏ chạy nền:
+máy in Bluetooth hiện ra như một máy in bình thường, dùng đúng driver chính thức.
+Áp dụng cho bản có Bluetooth thường (SPP), ví dụ BY-482BT, IP-802BT.
+
+CÀI ĐẶT (một lần)
+1. Cài driver chính thức: RHEBAR-Driver_1.3.2.20.pkg.
+2. Bật máy in. Cài đặt hệ thống > Bluetooth > bấm "Kết nối" ở máy in (vd BY-482BT-E220).
+   Nếu hỏi PIN: thử 0000 hoặc 1234.
+3. Giải nén gói này. Mở Terminal, gõ "bash " (có dấu cách), kéo file cai-bluetooth.sh vào, Enter.
+   (Chỉ cần file này: chương trình cầu nối đã nhúng sẵn bên trong.)
+4. Nhập mật khẩu Mac, xác nhận model. Xong: máy in "BY-482BT-E220 (Bluetooth)" có trong danh sách.
+
+KHI IN
+- Chọn máy in "... (Bluetooth)", chọn đúng khổ nhãn, tỷ lệ 100%.
+- Lần in đầu Mac mất vài giây để kết nối Bluetooth. Máy in phải bật và ở gần.
+
+SỰ CỐ
+- Script báo "Không thấy cổng Bluetooth": chưa ghép đôi, hoặc máy chỉ có Bluetooth LE (BLE).
+  Gửi kết quả lệnh "ls /dev/cu.*" để xử lý tiếp.
+- Lệnh in treo / không ra giấy: tắt bật máy in, xem nhật ký:  tail /var/log/rhebar-btbridge.log
+- Đổi máy in khác hoặc ghép đôi lại: chạy lại cai-bluetooth.sh.
+- Gỡ: bash go-bluetooth.sh
+
+Mã nguồn cầu nối: src/btbridge.c (nghe 127.0.0.1:9190, chuyển dữ liệu sang /dev/cu.<tên máy in>).

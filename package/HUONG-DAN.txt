@@ -1,0 +1,30 @@
+DRIVER MÁY IN NHÃN RHEBAR CHO macOS  (không chính thức, tự build)
+=================================================================
+
+Hỗ trợ: RHEBAR IP-802 / IP-802BT / IP-805 / IP-801BT, Beeprt BY-xxx, LTK-244, QR-368C, QR-410S, C10Pro...
+(đúng danh sách model trong bộ cài Windows RHEBAR 1.3.2.20). macOS 11 trở lên, Mac Intel và Apple M.
+Kết nối: cáp USB. Bluetooth của các bản "BT" không dùng được làm máy in trên Mac.
+
+CÀI ĐẶT
+1. Giải nén file zip.
+2. Cắm máy in bằng USB và bật nguồn.
+3. Mở Terminal (Launchpad > Khác > Terminal), gõ "bash " (có dấu cách), kéo file install.sh vào, Enter.
+4. Nhập mật khẩu Mac, chọn model (xem tem dưới đáy máy in). Xong.
+
+Cách thêm thủ công (nếu script không tìm thấy máy in): Cài đặt hệ thống > Máy in & Máy quét >
+Thêm máy in > chọn máy in USB > mục "Sử dụng": Chọn phần mềm... > gõ "RHEBAR" > chọn đúng model.
+
+KHI IN
+- "Kích thước giấy": chọn đúng khổ nhãn (vd 76 x 130 mm, 100 x 150 mm). Khổ lạ: "Quản lý kích thước tùy chỉnh".
+- Tỷ lệ 100% (hoặc "Vừa với khổ giấy" nếu in file PDF vận đơn khổ khác).
+- Tùy chọn máy in (trong hộp thoại in > "Tính năng máy in"): tốc độ, độ đậm (Darkness 0–15),
+  loại giấy (khe hở / vạch đen / cuộn liền), chiều in, chế độ ảnh.
+
+XỬ LÝ SỰ CỐ
+- In lệch / nhảy nhãn: tắt máy, giữ nút FEED rồi bật lại để máy tự đo nhãn (calibrate); kiểm tra khổ nhãn.
+- Nhãn bị ngược đầu: Tính năng máy in > Print Direction > Rotated 180.
+- In ra âm bản (nền đen chữ trắng): Tính năng máy in > Invert Output > Yes.
+- Mờ: tăng Darkness hoặc giảm Speed.
+- Gỡ driver: bash uninstall.sh
+
+Mã nguồn filter: src/rastertotspl.c (đọc CUPS raster, xuất lệnh TSPL BITMAP).
