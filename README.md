@@ -53,6 +53,7 @@ Không cần vào "Thêm máy in".
 | Hiện tượng | Cách xử lý |
 |---|---|
 | "Không thấy cổng Bluetooth" | Chưa ghép đôi; hoặc máy in chỉ có Bluetooth LE (chưa hỗ trợ). Kiểm tra bằng `ls /dev/cu.*` |
+| In nhiều trang chỉ ra trang đầu | Cập nhật lên bản ≥ 1.0.1 (chạy lại `cai-bluetooth.sh` mới) |
 | Lệnh in treo, không ra giấy | Tắt/bật máy in, xem nhật ký `tail /var/log/rhebar-btbridge.log` |
 | In lệch, nhảy nhãn | Cho máy tự đo nhãn (giữ FEED khi bật nguồn), chọn đúng khổ nhãn |
 | Máy in không có trong danh sách | Chạy `lpstat -v`; chạy lại `cai-bluetooth.sh` và xem lỗi in ra |
@@ -68,6 +69,10 @@ macOS không có đường in qua Bluetooth và không cho cài CUPS backend bê
 
 - [`src/btbridge.c`](src/btbridge.c): nghe `127.0.0.1:<port>`, mỗi lệnh in mở cổng serial Bluetooth
   (macOS tự kết nối), chuyển dữ liệu, đóng cổng khi xong. Chờ tối đa 30 giây nếu cổng chưa sẵn sàng.
+  Gửi **từng trang** (cắt sau mỗi lệnh TSPL `PRINT`) và chờ máy in xong trang đó qua lệnh trạng thái
+  `ESC ! ?` rồi mới gửi tiếp. Qua Bluetooth máy in không chặn được luồng dữ liệu như USB, gửi liền
+  nhiều trang thì các trang sau bị rơi. Máy không trả lời trạng thái thì chờ theo thời gian ước tính
+  từ `SIZE`/`SPEED`.
 - [`bt-package/cai-bluetooth.sh`](bt-package/cai-bluetooth.sh): tìm cổng `/dev/cu.*`, chọn PPD
   chính thức theo tên máy, cài LaunchDaemon `com.rhebar.btbridge.<tên>`, tạo hàng đợi in bằng `lpadmin`.
   Mỗi máy in Bluetooth dùng một cổng riêng từ 9190.
@@ -98,7 +103,7 @@ Test:
 ```bash
 python3 tools/test_filter.py build/<rastertotspl cho máy đang chạy> build/test-out
 docker run --rm -v "$PWD/build:/w" -v "$PWD/tests:/t" debian:bookworm-slim bash /t/docker-cups-e2e.sh
-docker run --rm -v "$PWD/build:/w" -v "$PWD/tests:/t" debian:bookworm-slim bash /t/docker-bridge.sh
+docker run --rm -v "$PWD/build:/w" -v "$PWD/tests:/t" python:3.12-slim bash /t/docker-bridge-pages.sh
 ```
 
 ## License
